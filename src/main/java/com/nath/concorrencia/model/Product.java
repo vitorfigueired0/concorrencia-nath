@@ -11,8 +11,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "clients")
-public class Client {
+@Table(name = "products")
+public class Product {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
@@ -20,21 +20,14 @@ public class Client {
   @Column(length = 30)
   private String name;
 
-  @Column(length = 30)
-  private String role;
+  @ManyToOne
+  @JoinColumn(name = "category_id", nullable = false)
+  private Category category;
 
-  @Column(length = 60)
-  private String address;
+  @Column(columnDefinition = "DOUBLE(10,2)")
+  private Double price;
 
-  @Column(length = 15)
-  private String city;
-
-  @Column(length = 10)
-  private String postalCode;
-
-  @Column(length = 24)
-  private String phone;
-  
-
+  @Column(name = "stock")
+  private Integer inStockQuantity;
 
 }

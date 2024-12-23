@@ -11,30 +11,15 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-@Table(name = "clients")
-public class Client {
+@Table(name = "categories")
+public class Category {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Column(length = 30)
+  @Column(length = 60)
   private String name;
 
-  @Column(length = 30)
-  private String role;
-
-  @Column(length = 60)
-  private String address;
-
-  @Column(length = 15)
-  private String city;
-
-  @Column(length = 10)
-  private String postalCode;
-
-  @Column(length = 24)
-  private String phone;
-  
-
-
+  @Column(columnDefinition = "LONGTEXT")
+  private String description;
 }
