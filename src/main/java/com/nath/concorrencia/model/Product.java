@@ -30,4 +30,7 @@ public class Product {
   @Column(name = "stock")
   private Integer inStockQuantity;
 
+  @Version
+  private Integer version; //<-- esse atributo controla a lock otimista
+
 }

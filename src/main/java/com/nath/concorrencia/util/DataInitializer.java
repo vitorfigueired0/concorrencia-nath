@@ -6,10 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StreamUtils;
-
 import java.nio.charset.StandardCharsets;
-import java.text.MessageFormat;
-import java.util.List;
 
 import static java.text.MessageFormat.format;
 

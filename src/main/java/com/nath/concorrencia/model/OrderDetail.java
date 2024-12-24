@@ -22,8 +22,8 @@ public class OrderDetail {
   private Product product;
 
   @ManyToOne
-  @JoinColumn(name = "client_id", nullable = false)
-  private Client client;
+  @JoinColumn(name = "order_id", nullable = false)
+  private Order order;
 
   @Column(name = "sell_price", columnDefinition = "DOUBLE(10,2)")
   private Double sellPrice;
