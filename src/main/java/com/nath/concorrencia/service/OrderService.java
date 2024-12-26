@@ -10,6 +10,7 @@ import com.nath.concorrencia.model.dto.ProductDTO;
 import com.nath.concorrencia.repository.OrderDetailRepository;
 import com.nath.concorrencia.repository.OrderRepository;
 import com.nath.concorrencia.repository.ProductRepository;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatusCode;
@@ -36,127 +37,92 @@ public class OrderService {
   @Autowired
   private ClientService clientService;
 
-  public void createOrder(OrderDTO orderDTO, OrderLockType type) {
-    switch (type) {
-      case NO_LOCK:
-        createOrderWithoutLock(orderDTO);
-        break;
-
-      case OPTIMISTIC:
-        createOrderWithOptimisticLock(orderDTO);
-        break;
-
-      case PESSIMISTIC:
-        createOrderWithPessimisticLock(orderDTO);
-        break;
-    }
-  }
-
-
-  @Transactional //Essa anotação faz com que o tópico "Tanto o salvamento quanto o débito de estoque devem ser operações atômicas dentro da mesma transação." seja atendida
-  private void createOrderWithoutLock(OrderDTO orderDTO) {
-    List<ProductDTO> products = orderDTO.getProducts();
-    List<OrderDetail> details = new ArrayList<>();
-
+  public OrderDTO createOrder(OrderDTO orderDTO, OrderLockType type) {
     Client client = clientService.getById(orderDTO.getClientId());
     Order order = Order.builder()
         .orderDate(LocalDateTime.now(ZoneId.of("America/Sao_Paulo")))
         .client(client)
         .build();
 
+    Long orderId;
+    return switch (type) {
+      case NO_LOCK -> {
+        orderId = createOrderWithoutLock(order, orderDTO.getProducts());
+        yield orderDTO.withId(orderId);
+      }
+      case OPTIMISTIC -> {
+        orderId = createOrderWithOptimisticLock(order, orderDTO.getProducts());
+        yield orderDTO.withId(orderId);
+      }
+      case PESSIMISTIC -> {
+        orderId = createOrderWithPessimisticLock(order, orderDTO.getProducts());
+        yield orderDTO.withId(orderId);
+      }
+    };
+  }
+
+  @Transactional //Essa anotação faz com que o tópico "Tanto o salvamento quanto o débito de estoque devem ser operações atômicas dentro da mesma transação." seja atendida
+  private Long createOrderWithoutLock(Order order, List<ProductDTO> products) {
+    List<OrderDetail> details = new ArrayList<>();
+
     for(ProductDTO productDto : products) {
       Product product = productRepository.findById(productDto.getId())
           .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
 
-      if(product.getInStockQuantity() < productDto.getQuantity()) {
-        throw new HttpClientErrorException(HttpStatusCode.valueOf(409), "Out of stock");
-      }
-
-      OrderDetail detail = OrderDetail.builder()
-          .quantity(productDto.getQuantity())
-          .sellPrice(product.getPrice() * productDto.getQuantity())
-          .product(product)
-          .build();
-
+      product.verifyStock(productDto.getQuantity());
+      OrderDetail detail = OrderDetail.build(product, productDto);
       details.add(detail);
       productRepository.updateStockWithoutVersionCheck(product.getId(), (product.getInStockQuantity() - productDto.getQuantity()));
     }
 
     Order finalOrder = orderRepository.save(order);
-    details.forEach(orderDetail -> {
-      orderDetailRepository.save(orderDetail.withOrder(finalOrder));
-    });
+    details.forEach(orderDetail -> orderDetailRepository.save(orderDetail.withOrder(finalOrder)));
+
+    return finalOrder.getId();
   }
 
   @Transactional //Essa anotação faz com que o tópico "Tanto o salvamento quanto o débito de estoque devem ser operações atômicas dentro da mesma transação." seja atendida
-  private void createOrderWithOptimisticLock(OrderDTO orderDTO) {
-    List<ProductDTO> products = orderDTO.getProducts();
+  private Long createOrderWithOptimisticLock(Order order, List<ProductDTO> products) {
     List<OrderDetail> details = new ArrayList<>();
-
-    Client client = clientService.getById(orderDTO.getClientId());
-    Order order = Order.builder()
-        .orderDate(LocalDateTime.now(ZoneId.of("America/Sao_Paulo")))
-        .client(client)
-        .build();
 
     for(ProductDTO productDto : products) {
       Product product = productRepository.findById(productDto.getId())
           .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
 
-      if(product.getInStockQuantity() < productDto.getQuantity()) {
-        throw new HttpClientErrorException(HttpStatusCode.valueOf(409), "Out of stock");
+      product.verifyStock(productDto.getQuantity());
+      OrderDetail detail = OrderDetail.build(product, productDto);
+      details.add(detail);
+
+      try {
+        productRepository.save(product.withInStockQuantity(product.getInStockQuantity() - productDto.getQuantity()));
+      } catch (OptimisticLockException e) {
+        throw new HttpClientErrorException(HttpStatusCode.valueOf(500), "Product already updated");
       }
+    }
 
-      OrderDetail detail = OrderDetail.builder()
-          .quantity(productDto.getQuantity())
-          .sellPrice(product.getPrice() * productDto.getQuantity())
-          .product(product)
-          .build();
+    Order finalOrder = orderRepository.save(order);
+    details.forEach(orderDetail -> orderDetailRepository.save(orderDetail.withOrder(finalOrder)));
 
+    return finalOrder.getId();
+  }
+
+  @Transactional //Essa anotação faz com que o tópico "Tanto o salvamento quanto o débito de estoque devem ser operações atômicas dentro da mesma transação." seja atendida
+  private Long createOrderWithPessimisticLock(Order order, List<ProductDTO> products) {
+    List<OrderDetail> details = new ArrayList<>();
+
+    for(ProductDTO productDto : products) {
+      Product product = productRepository.findByIdWithPessimisticLock(productDto.getId())
+          .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
+
+      product.verifyStock(productDto.getQuantity());
+      OrderDetail detail = OrderDetail.build(product, productDto);
       details.add(detail);
       productRepository.save(product.withInStockQuantity(product.getInStockQuantity() - productDto.getQuantity()));
     }
 
     Order finalOrder = orderRepository.save(order);
-    details.forEach(orderDetail -> {
-      orderDetailRepository.save(orderDetail.withOrder(finalOrder));
-    });
+    details.forEach(orderDetail -> orderDetailRepository.save(orderDetail.withOrder(finalOrder)));
+    return finalOrder.getId();
   }
-
-  @Transactional //Essa anotação faz com que o tópico "Tanto o salvamento quanto o débito de estoque devem ser operações atômicas dentro da mesma transação." seja atendida
-  private void createOrderWithPessimisticLock(OrderDTO orderDTO) {
-    List<ProductDTO> products = orderDTO.getProducts();
-    List<OrderDetail> details = new ArrayList<>();
-
-    Client client = clientService.getById(orderDTO.getClientId());
-    Order order = Order.builder()
-        .orderDate(LocalDateTime.now(ZoneId.of("America/Sao_Paulo")))
-        .client(client)
-        .build();
-
-    for(ProductDTO productDto : products) {
-      Product product = productRepository.findById(productDto.getId())
-          .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
-
-      if(product.getInStockQuantity() < productDto.getQuantity()) {
-        throw new HttpClientErrorException(HttpStatusCode.valueOf(409), "Out of stock");
-      }
-
-      OrderDetail detail = OrderDetail.builder()
-          .quantity(productDto.getQuantity())
-          .sellPrice(product.getPrice() * productDto.getQuantity())
-          .product(product)
-          .build();
-
-      details.add(detail);
-      productRepository.updateStockWithoutVersionCheck(product.getId(), (product.getInStockQuantity() - productDto.getQuantity()));
-    }
-
-    Order finalOrder = orderRepository.save(order);
-    details.forEach(orderDetail -> {
-      orderDetailRepository.save(orderDetail.withOrder(finalOrder));
-    });
-  }
-
 
 }

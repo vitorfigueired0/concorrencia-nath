@@ -2,6 +2,8 @@ package com.nath.concorrencia.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.web.client.HttpClientErrorException;
 
 @Entity
 @Getter
@@ -31,4 +33,9 @@ public class Product {
   @Version
   private Integer version; //<-- esse atributo controla a lock otimista
 
+  public void verifyStock(Integer requestedQuantity) {
+    if(this.inStockQuantity < requestedQuantity) {
+      throw new HttpClientErrorException(HttpStatusCode.valueOf(409), "Out of stock");
+    }
+  }
 }

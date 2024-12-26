@@ -1,5 +1,6 @@
 package com.nath.concorrencia.model;
 
+import com.nath.concorrencia.model.dto.ProductDTO;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -26,5 +27,14 @@ public class OrderDetail {
   @Column(name = "sell_price", columnDefinition = "DOUBLE(10,2)")
   private Double sellPrice;
   private Integer quantity;
+
+
+  public static OrderDetail build(Product product, ProductDTO dto) {
+    return OrderDetail.builder()
+        .quantity(dto.getQuantity())
+        .sellPrice(product.getPrice() * dto.getQuantity())
+        .product(product)
+        .build();
+  }
 
 }
