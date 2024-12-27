@@ -5,10 +5,7 @@ import com.nath.concorrencia.model.dto.OrderDTO;
 import com.nath.concorrencia.service.OrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/pedido")
@@ -19,7 +16,7 @@ public class OrderNoLockController {
 
   @PostMapping("/novo")
   @ResponseStatus(HttpStatus.OK)
-  private OrderDTO createOrder(OrderDTO dto) {
+  private OrderDTO createOrder(@RequestBody OrderDTO dto) {
     return orderService.createOrder(dto, OrderLockType.NO_LOCK);
   }
 

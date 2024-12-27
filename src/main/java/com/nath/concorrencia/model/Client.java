@@ -34,7 +34,4 @@ public class Client {
 
   @Column(length = 24)
   private String phone;
-  
-
-
 }

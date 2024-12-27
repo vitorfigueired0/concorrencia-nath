@@ -1,5 +1,7 @@
 package com.nath.concorrencia.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nath.concorrencia.enums.OrderLockType;
 import com.nath.concorrencia.model.Client;
 import com.nath.concorrencia.model.Order;
@@ -37,6 +39,8 @@ public class OrderService {
   @Autowired
   private ClientService clientService;
 
+  private final ObjectMapper mapper = new ObjectMapper();
+
   public OrderDTO createOrder(OrderDTO orderDTO, OrderLockType type) {
     Client client = clientService.getById(orderDTO.getClientId());
     Order order = Order.builder()
@@ -44,25 +48,25 @@ public class OrderService {
         .client(client)
         .build();
 
-    Long orderId;
+    Order resultOrder;
     return switch (type) {
       case NO_LOCK -> {
-        orderId = createOrderWithoutLock(order, orderDTO.getProducts());
-        yield orderDTO.withId(orderId);
+        resultOrder = createOrderWithoutLock(order, orderDTO.getProducts());
+        yield orderDTO.buildDto(resultOrder);
       }
       case OPTIMISTIC -> {
-        orderId = createOrderWithOptimisticLock(order, orderDTO.getProducts());
-        yield orderDTO.withId(orderId);
+        resultOrder = createOrderWithOptimisticLock(order, orderDTO.getProducts());
+        yield orderDTO.buildDto(resultOrder);
       }
       case PESSIMISTIC -> {
-        orderId = createOrderWithPessimisticLock(order, orderDTO.getProducts());
-        yield orderDTO.withId(orderId);
+        resultOrder = createOrderWithPessimisticLock(order, orderDTO.getProducts());
+        yield orderDTO.buildDto(resultOrder);
       }
     };
   }
 
   @Transactional //Essa anotação faz com que o tópico "Tanto o salvamento quanto o débito de estoque devem ser operações atômicas dentro da mesma transação." seja atendida
-  private Long createOrderWithoutLock(Order order, List<ProductDTO> products) {
+  private Order createOrderWithoutLock(Order order, List<ProductDTO> products) {
     List<OrderDetail> details = new ArrayList<>();
 
     for(ProductDTO productDto : products) {
@@ -70,6 +74,9 @@ public class OrderService {
           .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
 
       product.verifyStock(productDto.getQuantity());
+      productDto.setName(product.getName());
+      productDto.setPrice(product.getPrice());
+
       OrderDetail detail = OrderDetail.build(product, productDto);
       details.add(detail);
       productRepository.updateStockWithoutVersionCheck(product.getId(), (product.getInStockQuantity() - productDto.getQuantity()));
@@ -78,11 +85,11 @@ public class OrderService {
     Order finalOrder = orderRepository.save(order);
     details.forEach(orderDetail -> orderDetailRepository.save(orderDetail.withOrder(finalOrder)));
 
-    return finalOrder.getId();
+    return finalOrder;
   }
 
   @Transactional //Essa anotação faz com que o tópico "Tanto o salvamento quanto o débito de estoque devem ser operações atômicas dentro da mesma transação." seja atendida
-  private Long createOrderWithOptimisticLock(Order order, List<ProductDTO> products) {
+  private Order createOrderWithOptimisticLock(Order order, List<ProductDTO> products) {
     List<OrderDetail> details = new ArrayList<>();
 
     for(ProductDTO productDto : products) {
@@ -90,6 +97,8 @@ public class OrderService {
           .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
 
       product.verifyStock(productDto.getQuantity());
+      productDto.setName(product.getName());
+      productDto.setPrice(product.getPrice());
       OrderDetail detail = OrderDetail.build(product, productDto);
       details.add(detail);
 
@@ -103,11 +112,11 @@ public class OrderService {
     Order finalOrder = orderRepository.save(order);
     details.forEach(orderDetail -> orderDetailRepository.save(orderDetail.withOrder(finalOrder)));
 
-    return finalOrder.getId();
+    return finalOrder;
   }
 
   @Transactional //Essa anotação faz com que o tópico "Tanto o salvamento quanto o débito de estoque devem ser operações atômicas dentro da mesma transação." seja atendida
-  private Long createOrderWithPessimisticLock(Order order, List<ProductDTO> products) {
+  private Order createOrderWithPessimisticLock(Order order, List<ProductDTO> products) {
     List<OrderDetail> details = new ArrayList<>();
 
     for(ProductDTO productDto : products) {
@@ -115,6 +124,8 @@ public class OrderService {
           .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
 
       product.verifyStock(productDto.getQuantity());
+      productDto.setName(product.getName());
+      productDto.setPrice(product.getPrice());
       OrderDetail detail = OrderDetail.build(product, productDto);
       details.add(detail);
       productRepository.save(product.withInStockQuantity(product.getInStockQuantity() - productDto.getQuantity()));
@@ -122,7 +133,7 @@ public class OrderService {
 
     Order finalOrder = orderRepository.save(order);
     details.forEach(orderDetail -> orderDetailRepository.save(orderDetail.withOrder(finalOrder)));
-    return finalOrder.getId();
+    return finalOrder;
   }
 
 }
