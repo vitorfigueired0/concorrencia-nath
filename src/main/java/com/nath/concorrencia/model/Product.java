@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.server.ResponseStatusException;
 
 @Entity
 @Getter
@@ -35,7 +37,7 @@ public class Product {
 
   public void verifyStock(Integer requestedQuantity) {
     if(this.inStockQuantity < requestedQuantity) {
-      throw new HttpClientErrorException(HttpStatusCode.valueOf(409), "Out of stock");
+      throw new ResponseStatusException(HttpStatusCode.valueOf(409), "Out of stock");
     }
   }
 }

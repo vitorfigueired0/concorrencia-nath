@@ -17,7 +17,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -71,7 +71,7 @@ public class OrderService {
 
     for(ProductDTO productDto : products) {
       Product product = productRepository.findById(productDto.getId())
-          .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
+          .orElseThrow(() -> new ResponseStatusException(HttpStatusCode.valueOf(404), "Product not found"));
 
       product.verifyStock(productDto.getQuantity());
       productDto.setName(product.getName());
@@ -94,7 +94,7 @@ public class OrderService {
 
     for(ProductDTO productDto : products) {
       Product product = productRepository.findById(productDto.getId())
-          .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
+          .orElseThrow(() -> new ResponseStatusException(HttpStatusCode.valueOf(404), "Product not found"));
 
       product.verifyStock(productDto.getQuantity());
       productDto.setName(product.getName());
@@ -105,7 +105,7 @@ public class OrderService {
       try {
         productRepository.save(product.withInStockQuantity(product.getInStockQuantity() - productDto.getQuantity()));
       } catch (OptimisticLockException e) {
-        throw new HttpClientErrorException(HttpStatusCode.valueOf(500), "Product already updated");
+        throw new ResponseStatusException(HttpStatusCode.valueOf(500), "Product already updated");
       }
     }
 
@@ -121,7 +121,7 @@ public class OrderService {
 
     for(ProductDTO productDto : products) {
       Product product = productRepository.findByIdWithPessimisticLock(productDto.getId())
-          .orElseThrow(() -> new HttpClientErrorException(HttpStatusCode.valueOf(404), "Product not found"));
+          .orElseThrow(() -> new ResponseStatusException(HttpStatusCode.valueOf(404), "Product not found"));
 
       product.verifyStock(productDto.getQuantity());
       productDto.setName(product.getName());
