@@ -15,7 +15,7 @@ public class OrderOptimisticLockController {
   private OrderService orderService;
 
   @PostMapping("/novo")
-  @ResponseStatus(HttpStatus.OK)
+  @ResponseStatus(HttpStatus.CREATED)
   private OrderDTO createOrder(@RequestBody OrderDTO dto) {
     return orderService.createOrder(dto, OrderLockType.OPTIMISTIC);
   }
