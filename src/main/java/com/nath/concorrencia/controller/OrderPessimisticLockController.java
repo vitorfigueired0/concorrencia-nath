@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.concurrent.CompletableFuture;
+
 @RestController
 @RequestMapping("/pedido_pessimista")
 public class OrderPessimisticLockController {
@@ -16,7 +18,7 @@ public class OrderPessimisticLockController {
 
   @PostMapping("/novo")
   @ResponseStatus(HttpStatus.CREATED)
-  private OrderDTO createOrder(@RequestBody OrderDTO dto) {
+  private CompletableFuture<OrderDTO> createOrder(@RequestBody OrderDTO dto) {
     return orderService.createOrder(dto, OrderLockType.PESSIMISTIC);
   }
 

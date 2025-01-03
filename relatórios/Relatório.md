@@ -22,3 +22,7 @@ Obs: durante a execução dos testes sem lock, não foi observado estoque abaixo
 
 Obs: durante a execução dos testes com lock otimista, não foi observado estoque abaixo de 0.
 
+## Lock pessimista 
+
+
+

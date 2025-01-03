@@ -17,7 +17,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
   @Modifying
   @Query("UPDATE Product p SET p.inStockQuantity = :newStock WHERE p.id = :productId")
-  @Transactional
   void updateStockWithoutVersionCheck(@Param("productId") Long productId, @Param("newStock") int newStock);
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
