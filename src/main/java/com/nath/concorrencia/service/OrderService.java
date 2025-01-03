@@ -76,6 +76,7 @@ public class OrderService {
     List<OrderDetail> details = new ArrayList<>();
     EntityManager entityManager = emf.createEntityManager();
 
+    entityManager.getTransaction().begin();
     for(ProductDTO productDto : products) {
       Product product = entityManager.find(Product.class, productDto.getId());
       handleProduct(productDto, product);
@@ -118,12 +119,6 @@ public class OrderService {
   private Order createOrderWithOptimisticLock(Order order, List<ProductDTO> products) {
     List<OrderDetail> details = new ArrayList<>();
 
-    try {
-      System.out.println("is here");
-      Thread.sleep(20000);
-    } catch (InterruptedException e) {
-      throw new RuntimeException(e);
-    }
     for(ProductDTO productDto : products) {
       Product product = productRepository.findById(productDto.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatusCode.valueOf(404), "Product not found"));
 
