@@ -74,34 +74,60 @@ public class OrderService {
 
   private Order createOrderWithoutLock(Order order, List<ProductDTO> products) {
     List<OrderDetail> details = new ArrayList<>();
+    EntityManager entityManager = emf.createEntityManager();
 
     for(ProductDTO productDto : products) {
-      Product product = productRepository.findById(productDto.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatusCode.valueOf(404), "Product not found"));
-
-      product.verifyStock(productDto.getQuantity());
-      productDto.setName(product.getName());
-      productDto.setPrice(product.getPrice());
+      Product product = entityManager.find(Product.class, productDto.getId());
+      handleProduct(productDto, product);
 
       OrderDetail detail = OrderDetail.build(product, productDto);
       details.add(detail);
-      productRepository.updateStockWithoutVersionCheck(product.getId(), (product.getInStockQuantity() - productDto.getQuantity()));
+
+      updateProductStock(productDto, entityManager, product);
     }
 
-    Order finalOrder = orderRepository.save(order);
-    details.forEach(orderDetail -> orderDetailRepository.save(orderDetail.withOrder(finalOrder)));
+    Order finalOrder = getFinalOrder(order, entityManager);
 
+    saveDetails(details, entityManager, finalOrder);
+    entityManager.getTransaction().commit();
+    return finalOrder;
+  }
+
+  private Order createOrderWithPessimisticLock(Order order, List<ProductDTO> products) {
+    List<OrderDetail> details = new ArrayList<>();
+    EntityManager entityManager = emf.createEntityManager();
+
+    entityManager.getTransaction().begin();
+    for(ProductDTO productDto : products) {
+      Product product = entityManager.find(Product.class, productDto.getId(), LockModeType.PESSIMISTIC_WRITE);
+      handleProduct(productDto, product);
+
+      OrderDetail detail = OrderDetail.build(product, productDto);
+      details.add(detail);
+
+      updateProductStock(productDto, entityManager, product);
+    }
+
+    Order finalOrder = getFinalOrder(order, entityManager);
+
+    saveDetails(details, entityManager, finalOrder);
+    entityManager.getTransaction().commit();
     return finalOrder;
   }
 
   private Order createOrderWithOptimisticLock(Order order, List<ProductDTO> products) {
     List<OrderDetail> details = new ArrayList<>();
 
+    try {
+      System.out.println("is here");
+      Thread.sleep(20000);
+    } catch (InterruptedException e) {
+      throw new RuntimeException(e);
+    }
     for(ProductDTO productDto : products) {
       Product product = productRepository.findById(productDto.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatusCode.valueOf(404), "Product not found"));
 
-      product.verifyStock(productDto.getQuantity());
-      productDto.setName(product.getName());
-      productDto.setPrice(product.getPrice());
+      handleProduct(productDto, product);
       OrderDetail detail = OrderDetail.build(product, productDto);
       details.add(detail);
 
@@ -118,39 +144,29 @@ public class OrderService {
     return finalOrder;
   }
 
-  private Order createOrderWithPessimisticLock(Order order, List<ProductDTO> products) {
-    List<OrderDetail> details = new ArrayList<>();
-    EntityManager entityManager = emf.createEntityManager();
+  private void handleProduct(ProductDTO productDto, Product product) {
+    product.verifyStock(productDto.getQuantity());
+    productDto.setName(product.getName());
+    productDto.setPrice(product.getPrice());
+  }
 
-    entityManager.getTransaction().begin();
-    for(ProductDTO productDto : products) {
-      Product product = entityManager.find(Product.class, productDto.getId(), LockModeType.PESSIMISTIC_WRITE);
+  private void updateProductStock(ProductDTO productDto, EntityManager entityManager, Product product) {
+    Query updateStock = entityManager.createNativeQuery("UPDATE products SET stock = :newStock WHERE id = :productId");
+    updateStock.setParameter("newStock",(product.getInStockQuantity() - productDto.getQuantity()));
+    updateStock.setParameter("productId", product.getId());
+    updateStock.executeUpdate();
+  }
 
-      product.verifyStock(productDto.getQuantity());
-      productDto.setName(product.getName());
-      productDto.setPrice(product.getPrice());
-      OrderDetail detail = OrderDetail.build(product, productDto);
-      details.add(detail);
-
-      Query updateStock = entityManager.createNativeQuery("UPDATE products SET stock = :newStock WHERE id = :productId");
-      updateStock.setParameter("newStock",(product.getInStockQuantity() - productDto.getQuantity()));
-      updateStock.setParameter("productId", product.getId());
-      updateStock.executeUpdate();
-    }
-
+  private Order getFinalOrder(Order order, EntityManager entityManager) {
     Query saveOrder = entityManager.createNativeQuery(INSERT_INTO_ORDERS);
     saveOrder.setParameter("clientId", order.getClient().getId());
     saveOrder.setParameter("orderDate", order.getOrderDate());
     saveOrder.executeUpdate();
 
     Query fetchOrder = entityManager.createNativeQuery(SELECT_FROM_ORDERS, Order.class);
-    Order finalOrder = (Order) fetchOrder.getSingleResult();
-
-    saveDetails(details, entityManager, finalOrder);
-
-    entityManager.getTransaction().commit();
-    return finalOrder;
+    return (Order) fetchOrder.getSingleResult();
   }
+
 
   private void saveDetails(List<OrderDetail> details, EntityManager entityManager, Order finalOrder) {
     details.forEach(orderDetail -> {
@@ -161,5 +177,4 @@ public class OrderService {
       saveDetails.setParameter("productId", orderDetail.getProduct().getId());
     });
   }
-
 }
